@@ -1,0 +1,33 @@
+name: Valgrind Check
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  valgrind-check:
+    runs-on: ubuntu-latest
+    name: Run valgrind
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install valgrind
+        run: |
+          sudo apt-get install valgrind
+      - name: Build and Run
+        run: |
+          set +e
+          newFiles=$( git diff origin/$GITHUB_BASE_REF..HEAD --name-only --diff-filter=A )
+          newDirs=$( echo $newFiles | xargs dirname | sort |uniq )
+          for dir in $newDirs; do
+            cd $dir
+            TARGET_NAME=output
+            make TARGET=$TARGET_NAME
+
+            timeout 30s valgrind --leak-check=full --error-exitcode=1 ./$TARGET_NAME || {
+              echo "Valgrind failed or timed out" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            }
+            cd -
+          done

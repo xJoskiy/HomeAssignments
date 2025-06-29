@@ -1,0 +1,45 @@
+name: Check Code Style
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  clang-format-check:
+    name: Check formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with: 
+          fetch-depth: 0
+      - name: Pull clang-format
+        run: |
+          sudo add-apt-repository 'deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main'
+          wget https://apt.llvm.org/llvm-snapshot.gpg.key
+          sudo apt-key add llvm-snapshot.gpg.key
+          sudo apt-get update
+          sudo apt-get install -y clang-format-18
+      - name: Run clang format
+        run: |
+          set +e
+          files=$( git diff -U0 origin/$GITHUB_BASE_REF...HEAD --name-only | grep -E '.(h|hpp|c|cpp)' )
+
+          output=""
+
+          for file in $files; do
+            diff=$( git diff -U0 origin/$GITHUB_BASE_REF...HEAD "$file" )
+            output+=$( echo "$diff" | clang-format-diff-18 -p 1 )
+          done
+
+          if [ "$output" != "" ]
+          then
+            echo ":x: :x: :x:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`c++" >> $GITHUB_STEP_SUMMARY
+            echo "$output" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "$output"
+            exit 1
+          fi
+
+          echo "$output"
+          echo "### $output :heavy_check_mark: " >> $GITHUB_STEP_SUMMARY
